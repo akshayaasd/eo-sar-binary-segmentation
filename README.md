@@ -1,53 +1,148 @@
 # EO-SAR Binary Change Detection
 
-This repository contains the solution for the Satellite AI Research Intern technical assignment at GalaxEye Space. The project implements a robust deep learning pipeline to perform pixel-level building damage classification using co-registered Electro-Optical (EO) and Synthetic Aperture Radar (SAR) imagery.
+This repository contains the solution for the Satellite AI Research Intern technical assignment at **GalaxEye Space**. The project implements a production-ready, two-stage deep learning pipeline for pixel-level building damage classification using co-registered Electro-Optical (EO) and Synthetic Aperture Radar (SAR) imagery.
+
+---
+
+## Results
+
+| Metric | Validation | Test (Held-Out) |
+|---|---|---|
+| **IoU** | 0.7767 | **0.5274** |
+| **F1 Score** | 0.8572 | **0.5987** |
+| **Precision** | — | 0.6324 |
+| **Recall** | — | **0.8172** |
+
+> Full evaluation report: `results/eval_report.txt`
+
+---
 
 ## Methodology
 
-This project utilizes a **Two-Stage Strategy** to handle the high class-imbalance and cross-modal nature of the dataset:
-1. **Stage 1 (Building Localization)**: A ResNet-18 U-Net trained exclusively on Pre-Event EO imagery to extract precise building footprints.
-2. **Stage 2 (Damage Classification)**: A Pseudo-Siamese Network (using independent encoders) that processes both EO and SAR images to identify damaged pixels, specifically gated by the Stage 1 footprints.
+This project uses a **Two-Stage Gated Strategy** to handle cross-modal inputs and severe class imbalance:
 
-### Advanced Data Preprocessing
-- **EO Images**: Standard Min-Max Scaling (0 to 1).
-- **SAR Images**: Log-Domain Transformation (`np.log1p`) combined with 1st-99th percentile clipping to neutralize severe multiplicative radar speckle noise.
-- **Data Loading**: On-the-fly random `256x256` patch extraction with spatial augmentations to prevent GPU Out-of-Memory (OOM) errors and overfitting.
+### Stage 1 — Building Localization
+A **ResNet-18 U-Net** trained exclusively on pre-event EO (optical) imagery to produce precise binary building footprint masks. This stage deliberately ignores damage — its only job is to answer: *"Where are the buildings?"*
+
+### Stage 2 — Damage Classification (Pseudo-Siamese)
+A **Pseudo-Siamese Network** with independent dual encoders that processes both EO (pre-event) and SAR (post-event) streams simultaneously to identify which buildings were damaged.
+
+#### The Gating Mechanism
+The key innovation is a hard spatial gate applied during Stage 2 training:
+```
+gated_prediction = stage2_logits × stage1_building_mask
+```
+This ensures the model is only penalized for predictions *inside* building footprints, eliminating false positives from moving vehicles, shadows, and seasonal vegetation changes.
+
+---
+
+## Architecture Overview
+
+```
+Pre-Event EO ──► ResNet-18 Encoder ─┐
+                                     ├─► Concat Skip Connections ──► U-Net Decoder ──► Damage Mask
+Post-Event SAR ─► ResNet-18 Encoder ─┘
+
+Stage 1 Footprint Gate ──────────────────────────────────────────────► ×  (applied to output)
+```
+
+---
+
+## Advanced Data Preprocessing
+
+| Modality | Transform |
+|---|---|
+| **EO (Optical)** | Min-Max scaling → `[0, 1]` |
+| **SAR (Radar)** | `log1p` transform → percentile clip (1st–99th) → normalize to `[0, 1]` |
+| **Masks** | Binary threshold (`> 0`) |
+| **Patching** | Random `256×256` crop at runtime (GPU OOM prevention) |
+| **Augmentation** | Random horizontal + vertical flips |
+
+---
 
 ## Repository Structure
-- `src/data/`: Modular PyTorch datasets and modality-specific preprocessing logic.
-- `src/models/`: Neural network architectures (ResNet-18 U-Net).
-- `scripts/`: Production-ready training and evaluation loops.
-- `notebooks/`: Interactive visual exploration and pipeline verification.
-- `dataset/`: (Ignored via git) Directory for the raw TIFF images.
-- `checkpoints/`: (Ignored via git) Directory for saved model weights.
+
+```
+eo-sar-binary-segmentation/
+├── src/
+│   ├── data/
+│   │   ├── dataset.py          # EOSARDataset — PyTorch Dataset class
+│   │   └── transforms.py       # Modality-specific preprocessing
+│   └── models/
+│       ├── resnet_unet.py      # Stage 1: ResNet-18 U-Net
+│       └── pseudo_siamese.py   # Stage 2: Dual-encoder fusion network
+├── scripts/
+│   ├── clean_dataset.py        # Dataset integrity validation
+│   ├── train_stage1.py         # Stage 1 training loop
+│   ├── train_stage2.py         # Stage 2 gated training loop
+│   └── evaluate.py             # Test-split evaluation + visualizations
+├── results/
+│   └── eval_report.txt         # Final metrics report
+├── docs/
+│   └── progress_summary.md     # Detailed phase-by-phase progress log
+├── checkpoints/                # (gitignored) Saved model weights
+└── dataset/                    # (gitignored) Raw TIFF imagery
+```
+
+---
 
 ## Installation & Setup
 
-1. Clone the repository and install dependencies:
 ```bash
 git clone <your-repo-link>
 cd eo-sar-binary-segmentation
-conda create -n satellite_env python=3.10
-conda activate satellite_env
+
+# Create and activate environment
+conda create -n analyst_env python=3.10
+conda activate analyst_env
+
+# Install rasterio via conda-forge (recommended for Windows)
+conda install -c conda-forge rasterio -y
+
+# Install remaining dependencies
 pip install -r requirements.txt
 ```
 
-2. Ensure your dataset is placed in the `dataset/` directory.
+Place your dataset in the `dataset/` directory with the structure:
+```
+dataset/
+├── train/
+│   ├── pre-event/   *.tif
+│   ├── post-event/  *.tif
+│   └── target/      *.tif
+├── val/  (same structure)
+└── test/ (same structure)
+```
+
+---
+
+## Running the Pipeline
+
+```bash
+# Step 1 — Validate dataset integrity
+python scripts/clean_dataset.py
+
+# Step 2 — Train Stage 1 (Building Localization)
+python scripts/train_stage1.py
+
+# Step 3 — Train Stage 2 (Damage Classification)
+python scripts/train_stage2.py
+
+# Step 4 — Evaluate on test split
+$env:KMP_DUPLICATE_LIB_OK="TRUE"   # Windows only (OpenMP conflict workaround)
+python scripts/evaluate.py
+```
+
+---
 
 ## Pre-trained Models
 
-To avoid bloating the Git repository, the model weights are hosted externally. 
-Download the checkpoint files and place them in the `checkpoints/` directory.
+Model weights are hosted externally to keep the repository lightweight.
+Download and place in the `checkpoints/` directory.
 
-*   [Download Stage 1 Model (best_stage1.pth) - Google Drive](https://drive.google.com/file/d/1Z-ui6o_c8iVGY1A5l68OzCWNyN4bbR-f/view?usp=sharing)
-
-## Training
-
-To train the Stage 1 Building Localization model:
-```bash
-python scripts/train_stage1.py
-```
-*(The script features dynamic BCE+Dice Loss, Validation IoU/F1 tracking, and early stopping).*
+- [Stage 1 — best_stage1.pth (Google Drive)](https://drive.google.com/file/d/1Z-ui6o_c8iVGY1A5l68OzCWNyN4bbR-f/view?usp=sharing)
+- [Stage 2 — best_stage2.pth (Google Drive)](https://drive.google.com/file/d/1Bop3EhLZQ-zS_lUGE-N8km4lUNR51B_1/view?usp=sharing)
 
 ---
-**Status**: Stage 1 Training Complete. Preparing for Stage 2 (Pseudo-Siamese Network).
+
+**Status**: ✅ End-to-end pipeline complete — Data → Stage 1 → Stage 2 → Evaluation.
