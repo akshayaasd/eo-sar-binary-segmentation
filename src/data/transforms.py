@@ -1,8 +1,5 @@
-# pyrefly: ignore [missing-import]
 import numpy as np
-# pyrefly: ignore [missing-import]
 import torch
-# pyrefly: ignore [missing-import]
 import torchvision.transforms.functional as TF
 import random
 

@@ -27,8 +27,8 @@ This project utilizes a **Two-Stage Strategy** to handle the high class-imbalanc
 ```bash
 git clone <your-repo-link>
 cd eo-sar-binary-segmentation
-conda create -n analyst_env python=3.10
-conda activate analyst_env
+conda create -n satellite_env python=3.10
+conda activate satellite_env
 pip install -r requirements.txt
 ```
 

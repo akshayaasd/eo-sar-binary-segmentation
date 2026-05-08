@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
-# pyrefly: ignore [missing-import]
 import rasterio
-# pyrefly: ignore [missing-import]
 from torch.utils.data import Dataset
 try:
     # This works when imported as a module (e.g. from notebooks or train.py)
