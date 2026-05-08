@@ -33,7 +33,7 @@ def preprocess_sar(sar_patch):
         sar_norm = (sar_clipped - lower_bound) / (upper_bound - lower_bound)
     else:
         sar_norm = sar_clipped
-    return torch.from_numpy(sar_norm)
+    return torch.from_numpy(sar_norm).float()
 
 def preprocess_mask(mask_patch):
     """Ensure binary mask."""

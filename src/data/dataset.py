@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+# pyrefly: ignore [missing-import]
 import rasterio
 from torch.utils.data import Dataset
 try:
@@ -53,23 +54,34 @@ class EOSARDataset(Dataset):
         return img
 
     def __getitem__(self, idx):
-        filename = self.filenames[idx]
-        
-        # Load raw images
-        eo_raw = self._load_image(self.pre_dir / filename)
-        sar_raw = self._load_image(self.post_dir / filename)
-        mask_raw = self._load_image(self.target_dir / filename)
-        
-        # 1. Patch Extraction
-        eo_patch, sar_patch, mask_patch = extract_random_patch(eo_raw, sar_raw, mask_raw, self.patch_size)
-        
-        # 2. Dual-Stream Preprocessing
-        eo_tensor = preprocess_eo(eo_patch)
-        sar_tensor = preprocess_sar(sar_patch)
-        mask_tensor = preprocess_mask(mask_patch)
-        
-        # 3. Data Augmentations (Spatial)
-        if self.augment:
-            eo_tensor, sar_tensor, mask_tensor = apply_spatial_augmentations(eo_tensor, sar_tensor, mask_tensor)
+        # Retry up to 5 times if a file is partially corrupted
+        for attempt in range(5):
+            try:
+                filename = self.filenames[idx]
                 
-        return eo_tensor, sar_tensor, mask_tensor
+                # Load raw images
+                eo_raw = self._load_image(self.pre_dir / filename)
+                sar_raw = self._load_image(self.post_dir / filename)
+                mask_raw = self._load_image(self.target_dir / filename)
+                
+                # 1. Patch Extraction
+                eo_patch, sar_patch, mask_patch = extract_random_patch(eo_raw, sar_raw, mask_raw, self.patch_size)
+                
+                # 2. Dual-Stream Preprocessing
+                eo_tensor = preprocess_eo(eo_patch)
+                sar_tensor = preprocess_sar(sar_patch)
+                mask_tensor = preprocess_mask(mask_patch)
+                
+                # 3. Data Augmentations (Spatial)
+                if self.augment:
+                    eo_tensor, sar_tensor, mask_tensor = apply_spatial_augmentations(eo_tensor, sar_tensor, mask_tensor)
+                    
+                return eo_tensor, sar_tensor, mask_tensor
+            
+            except Exception as e:
+                # File is partially corrupted — skip it and try a random different sample
+                import random
+                print(f"\n[Warning] Skipping corrupted file: {self.filenames[idx]} ({e})")
+                idx = random.randint(0, len(self.filenames) - 1)
+        
+        raise RuntimeError("Failed to load a valid sample after 5 attempts.")
