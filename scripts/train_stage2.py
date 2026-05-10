@@ -91,8 +91,8 @@ def train():
     
     # Dataloaders
     print("Loading datasets...")
-    train_dataset = EOSARDataset(root_dir=dataset_root, split='train', patch_size=256, augment=True)
-    val_dataset = EOSARDataset(root_dir=dataset_root, split='val', patch_size=256, augment=False)
+    train_dataset = EOSARDataset(root_dir=dataset_root, split='train', patch_size=256, augment=True,  task='damage')
+    val_dataset   = EOSARDataset(root_dir=dataset_root, split='val',   patch_size=256, augment=False, task='damage')
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)

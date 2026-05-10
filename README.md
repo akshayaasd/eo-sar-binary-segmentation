@@ -1,62 +1,49 @@
 # EO-SAR Binary Change Detection
 
-This repository contains the solution for the Satellite AI Research Intern technical assignment at **GalaxEye Space**. The project implements a production-ready, two-stage deep learning pipeline for pixel-level building damage classification using co-registered Electro-Optical (EO) and Synthetic Aperture Radar (SAR) imagery.
+> **GalaxEye Space — Satellite AI Research Intern Technical Assignment**
+
+A production-ready two-stage deep learning pipeline for **pixel-level building damage detection** using co-registered Electro-Optical (EO) and Synthetic Aperture Radar (SAR) imagery. The system classifies each pixel as *Changed* (damaged/destroyed building) or *No-Change* (background or intact building) by fusing pre-event optical data with post-event radar data.
 
 ---
 
 ## Results
 
-| Metric | Validation | Test (Held-Out) |
-|---|---|---|
-| **IoU** | 0.7767 | **0.5274** |
-| **F1 Score** | 0.8572 | **0.5987** |
-| **Precision** | — | 0.6324 |
-| **Recall** | — | **0.8172** |
+Metrics reported for the **Change class (label = 1)** only, per assignment requirements.
 
-> Full evaluation report: `results/eval_report.txt`
+| Metric | Validation Split | Test Split (Held-Out) |
+|---|---|---|
+| **IoU** | 0.7767 | 0.5274 |
+| **F1 Score** | 0.8572 | 0.5987 |
+| **Precision** | — | 0.6324 |
+| **Recall** | — | 0.8172 |
+
+> Full pixel-level confusion matrix and per-sample visualizations: `results/eval_report.txt` and `results/sample_*.png`
 
 ---
 
 ## Methodology
 
-This project uses a **Two-Stage Gated Strategy** to handle cross-modal inputs and severe class imbalance:
+### Two-Stage Gated Strategy
 
-### Stage 1 — Building Localization
-A **ResNet-18 U-Net** trained exclusively on pre-event EO (optical) imagery to produce precise binary building footprint masks. This stage deliberately ignores damage — its only job is to answer: *"Where are the buildings?"*
+**Stage 1 — Building Localization**
+A `ResNet-18 U-Net` trained exclusively on pre-event EO imagery to produce binary building footprint masks. Input: EO only. Output: `1` where a building exists, `0` otherwise.
 
-### Stage 2 — Damage Classification (Pseudo-Siamese)
-A **Pseudo-Siamese Network** with independent dual encoders that processes both EO (pre-event) and SAR (post-event) streams simultaneously to identify which buildings were damaged.
+**Stage 2 — Damage Classification (Pseudo-Siamese)**
+A dual-encoder `Pseudo-Siamese U-Net` that processes EO (pre-event) and SAR (post-event) simultaneously. Each modality has its own ResNet-18 encoder; features are fused via concatenation at every skip-connection level.
 
-#### The Gating Mechanism
-The key innovation is a hard spatial gate applied during Stage 2 training:
+**The Gating Mechanism**
 ```
 gated_prediction = stage2_logits × stage1_building_mask
 ```
-This ensures the model is only penalized for predictions *inside* building footprints, eliminating false positives from moving vehicles, shadows, and seasonal vegetation changes.
+The Stage 1 footprint acts as a hard spatial gate — the model is penalized only for predictions *inside* building regions, eliminating false positives from vehicles, shadows, and seasonal change.
 
----
-
-## Architecture Overview
-
-```
-Pre-Event EO ──► ResNet-18 Encoder ─┐
-                                     ├─► Concat Skip Connections ──► U-Net Decoder ──► Damage Mask
-Post-Event SAR ─► ResNet-18 Encoder ─┘
-
-Stage 1 Footprint Gate ──────────────────────────────────────────────► ×  (applied to output)
-```
-
----
-
-## Advanced Data Preprocessing
-
-| Modality | Transform |
-|---|---|
-| **EO (Optical)** | Min-Max scaling → `[0, 1]` |
-| **SAR (Radar)** | `log1p` transform → percentile clip (1st–99th) → normalize to `[0, 1]` |
-| **Masks** | Binary threshold (`> 0`) |
-| **Patching** | Random `256×256` crop at runtime (GPU OOM prevention) |
-| **Augmentation** | Random horizontal + vertical flips |
+**Label Remapping** (per assignment specification):
+| Original Class | Original Value | Remapped Value | Remapped Class |
+|---|---|---|---|
+| Background | 0 | 0 | No-Change |
+| Intact | 1 | 0 | No-Change |
+| Damaged | 2 | 1 | Change |
+| Destroyed | 3 | 1 | Change |
 
 ---
 
@@ -64,84 +51,163 @@ Stage 1 Footprint Gate ───────────────────
 
 ```
 eo-sar-binary-segmentation/
+├── config.yaml                 # All hyperparameters (single source of truth)
+├── requirements.txt            # Pinned dependencies
 ├── src/
 │   ├── data/
 │   │   ├── dataset.py          # EOSARDataset — PyTorch Dataset class
-│   │   └── transforms.py       # Modality-specific preprocessing
+│   │   └── transforms.py       # Modality-specific preprocessing + label remapping
 │   └── models/
 │       ├── resnet_unet.py      # Stage 1: ResNet-18 U-Net
 │       └── pseudo_siamese.py   # Stage 2: Dual-encoder fusion network
 ├── scripts/
 │   ├── clean_dataset.py        # Dataset integrity validation
+│   ├── check_labels.py         # Verify mask pixel value distribution
 │   ├── train_stage1.py         # Stage 1 training loop
 │   ├── train_stage2.py         # Stage 2 gated training loop
-│   └── evaluate.py             # Test-split evaluation + visualizations
+│   └── evaluate.py             # Test-split evaluation + confusion matrix + visualizations
 ├── results/
-│   └── eval_report.txt         # Final metrics report
+│   └── eval_report.txt         # Final metrics + confusion matrix
 ├── docs/
-│   └── progress_summary.md     # Detailed phase-by-phase progress log
+│   └── progress_summary.md     # Phase-by-phase development log
 ├── checkpoints/                # (gitignored) Saved model weights
 └── dataset/                    # (gitignored) Raw TIFF imagery
 ```
 
 ---
 
-## Installation & Setup
+## Requirements
+
+- **Python**: 3.10
+- **CUDA**: 12.1 (for GPU training)
+- **GPU**: NVIDIA RTX 3050 (4GB VRAM) or better
+
+All dependencies with pinned versions are in `requirements.txt`:
+```
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+numpy>=1.24.4
+rasterio==1.5.0
+matplotlib==3.10.3
+tqdm>=4.66.0
+...
+```
+
+---
+
+## Environment Setup
 
 ```bash
+# 1. Clone the repository
 git clone <your-repo-link>
 cd eo-sar-binary-segmentation
 
-# Create and activate environment
-conda create -n analyst_env python=3.10
+# 2. Create conda environment
+conda create -n analyst_env python=3.10 -y
 conda activate analyst_env
 
-# Install rasterio via conda-forge (recommended for Windows)
+# 3. Install rasterio via conda-forge (avoids GDAL binary issues on Windows)
 conda install -c conda-forge rasterio -y
 
-# Install remaining dependencies
+# 4. Install remaining dependencies
 pip install -r requirements.txt
 ```
 
-Place your dataset in the `dataset/` directory with the structure:
+> **Windows users**: If you see an OpenMP conflict error, prefix commands with:
+> `$env:KMP_DUPLICATE_LIB_OK="TRUE";`
+
+---
+
+## Dataset Structure
+
+Place the dataset in the `dataset/` directory exactly as follows:
+
 ```
 dataset/
 ├── train/
-│   ├── pre-event/   *.tif
-│   ├── post-event/  *.tif
-│   └── target/      *.tif
-├── val/  (same structure)
-└── test/ (same structure)
+│   ├── pre-event/    # Pre-event EO images (.tif)
+│   ├── post-event/   # Post-event SAR images (.tif)
+│   └── target/       # Annotation masks (.tif) — values 0,1,2,3
+├── val/
+│   ├── pre-event/
+│   ├── post-event/
+│   └── target/
+└── test/
+    ├── pre-event/
+    ├── post-event/
+    └── target/
 ```
+
+Use the dataset split **exactly as provided** — do not shuffle or re-split.
 
 ---
 
-## Running the Pipeline
+## Training
+
+All hyperparameters are defined in `config.yaml`.
 
 ```bash
-# Step 1 — Validate dataset integrity
+# Validate dataset integrity first (recommended)
 python scripts/clean_dataset.py
 
-# Step 2 — Train Stage 1 (Building Localization)
-python scripts/train_stage1.py
+# Train Stage 1 — Building Localization
+python scripts/train_stage1.py --config config.yaml
 
-# Step 3 — Train Stage 2 (Damage Classification)
-python scripts/train_stage2.py
-
-# Step 4 — Evaluate on test split
-$env:KMP_DUPLICATE_LIB_OK="TRUE"   # Windows only (OpenMP conflict workaround)
-python scripts/evaluate.py
+# Train Stage 2 — Damage Classification
+python scripts/train_stage2.py --config config.yaml
 ```
+
+Both training scripts feature:
+- Combined **BCE + Dice Loss** for class imbalance handling
+- **IoU + F1** tracked per epoch
+- **Early stopping** (patience = 10 epochs)
+- Automatic checkpoint saving to `checkpoints/`
 
 ---
 
-## Pre-trained Models
+## Evaluation
 
-Model weights are hosted externally to keep the repository lightweight.
-Download and place in the `checkpoints/` directory.
+```bash
+python scripts/evaluate.py --data_path dataset/test --weights checkpoints/best_stage2.pth
+```
 
-- [Stage 1 — best_stage1.pth (Google Drive)](https://drive.google.com/file/d/1Z-ui6o_c8iVGY1A5l68OzCWNyN4bbR-f/view?usp=sharing)
-- [Stage 2 — best_stage2.pth (Google Drive)](https://drive.google.com/file/d/1Bop3EhLZQ-zS_lUGE-N8km4lUNR51B_1/view?usp=sharing)
+Outputs:
+- Mean IoU, F1, Precision, Recall for the Change class
+- Pixel-level confusion matrix (TP / FP / FN / TN)
+- 10 prediction visualization panels saved to `results/`
+- Full report saved to `results/eval_report.txt`
+
+---
+
+## Pre-trained Model Weights
+
+Download and place in the `checkpoints/` directory:
+
+| Model | Architecture | Download |
+|---|---|---|
+| Stage 1 | ResNet-18 U-Net | [best_stage1.pth (Google Drive)](https://drive.google.com/file/d/1Z-ui6o_c8iVGY1A5l68OzCWNyN4bbR-f/view?usp=sharing) |
+| Stage 2 | Pseudo-Siamese U-Net | [best_stage2.pth (Google Drive)](https://drive.google.com/file/d/1Bop3EhLZQ-zS_lUGE-N8km4lUNR51B_1/view?usp=sharing) |
+
+---
+
+## Citations & References
+
+**Architectures:**
+- He et al. (2016). *Deep Residual Learning for Image Recognition.* CVPR. — ResNet-18 encoder backbone.
+- Ronneberger et al. (2015). *U-Net: Convolutional Networks for Biomedical Image Segmentation.* MICCAI. — U-Net decoder design.
+
+**Change Detection:**
+- Shi et al. (2021). *A Deeply Supervised Attention Metric-Based Network and an Open Aerial Image Dataset for Remote Sensing Change Detection.* IEEE TGRS.
+- Chen et al. (2021). *Remote Sensing Image Change Detection with Transformers.* IEEE TGRS.
+
+**SAR Preprocessing:**
+- Lee & Pottier (2009). *Polarimetric Radar Imaging: From Basics to Applications.* — Log-domain speckle reduction.
+
+**Loss Functions:**
+- Sudre et al. (2017). *Generalised Dice Overlap as a Deep Learning Loss Function for Highly Unbalanced Segmentations.* DLMIA. — Dice Loss formulation.
+
+**Pretrained Weights:**
+- ImageNet-pretrained ResNet-18 via `torchvision.models.ResNet18_Weights.IMAGENET1K_V1`.
 
 ---
 

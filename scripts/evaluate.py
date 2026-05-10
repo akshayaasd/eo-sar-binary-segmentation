@@ -127,13 +127,14 @@ def evaluate():
     # ---- Test DataLoader ----
     print("\nLoading test dataset...")
     test_dataset = EOSARDataset(root_dir='dataset', split='test',
-                                patch_size=256, augment=False)
+                                patch_size=256, augment=False, task='damage')
     test_loader  = DataLoader(test_dataset, batch_size=4,
                               shuffle=False, num_workers=4, pin_memory=True)
     print(f"Test samples: {len(test_dataset)} | Batches: {len(test_loader)}")
 
     # ---- Evaluation ----
     all_iou, all_f1, all_precision, all_recall = [], [], [], []
+    total_tp, total_fp, total_fn, total_tn = 0, 0, 0, 0
     num_vis = 10   # number of visual samples to save
     vis_saved = 0
 
@@ -163,6 +164,14 @@ def evaluate():
                 all_precision.append(prec)
                 all_recall.append(rec)
 
+                # Accumulate confusion matrix
+                p = preds_binary[i].cpu()
+                m = mask[i].cpu()
+                total_tp += (p * m).sum().item()
+                total_fp += (p * (1 - m)).sum().item()
+                total_fn += ((1 - p) * m).sum().item()
+                total_tn += ((1 - p) * (1 - m)).sum().item()
+
                 # Save visualizations for first N samples
                 if vis_saved < num_vis:
                     save_prediction_grid(
@@ -189,6 +198,10 @@ def evaluate():
     print(f"  Mean F1           : {mean_f1:.4f}  ({mean_f1*100:.2f}%)")
     print(f"  Mean Precision    : {mean_prec:.4f}  ({mean_prec*100:.2f}%)")
     print(f"  Mean Recall       : {mean_rec:.4f}  ({mean_rec*100:.2f}%)")
+    print("\n  Confusion Matrix (pixel-level):")
+    print(f"  {'':20s}  Pred: No-Change  Pred: Change")
+    print(f"  {'GT: No-Change':20s}  TN={total_tn:>12,.0f}   FP={total_fp:>12,.0f}")
+    print(f"  {'GT: Change':20s}  FN={total_fn:>12,.0f}   TP={total_tp:>12,.0f}")
     print("=" * 50)
     print(f"\n  Visualizations saved → results/sample_001.png ... sample_{vis_saved:03d}.png")
 
@@ -202,6 +215,9 @@ def evaluate():
         f.write(f"Mean F1           : {mean_f1:.4f}  ({mean_f1*100:.2f}%)\n")
         f.write(f"Mean Precision    : {mean_prec:.4f}  ({mean_prec*100:.2f}%)\n")
         f.write(f"Mean Recall       : {mean_rec:.4f}  ({mean_rec*100:.2f}%)\n")
+        f.write("\nConfusion Matrix (pixel-level):\n")
+        f.write(f"  TN={total_tn:.0f}  FP={total_fp:.0f}\n")
+        f.write(f"  FN={total_fn:.0f}  TP={total_tp:.0f}\n")
     print(f"  Report saved     → {report_path}\n")
 
 

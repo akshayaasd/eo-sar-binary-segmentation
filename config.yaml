@@ -1,0 +1,73 @@
+# ============================================================
+# EO-SAR Binary Change Detection — Hyperparameter Config
+# All training hyperparameters are logged here for reproducibility
+# ============================================================
+
+# ---- Reproducibility ----
+seed: 42
+
+# ---- Dataset ----
+dataset:
+  root: "dataset"
+  patch_size: 256
+  splits:
+    train: "train"
+    val: "val"
+    test: "test"
+  label_remapping:
+    # Assignment-required remapping (classes 0,1 → No-Change; 2,3 → Change)
+    background: 0   # original 0 → 0
+    intact:     0   # original 1 → 0  (No-Change)
+    damaged:    1   # original 2 → 1  (Change)
+    destroyed:  1   # original 3 → 1  (Change)
+
+# ---- Data Augmentation ----
+augmentation:
+  horizontal_flip: true
+  vertical_flip: true
+
+# ---- DataLoader ----
+dataloader:
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+
+# ---- Stage 1 — Building Localization (ResNet-18 U-Net) ----
+stage1:
+  architecture: "ResNet18UNet"
+  encoder: "resnet18"
+  encoder_weights: "imagenet"
+  input_channels: 3        # EO only (pre-event optical)
+  output_channels: 1
+  optimizer: "AdamW"
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  loss: "BCEDiceLoss"
+  bce_weight: 0.5          # BCE weight in combined loss; Dice weight = 1 - bce_weight
+  max_epochs: 100
+  early_stopping_patience: 10
+  checkpoint: "checkpoints/best_stage1.pth"
+
+# ---- Stage 2 — Damage Classification (Pseudo-Siamese U-Net) ----
+stage2:
+  architecture: "PseudoSiameseUNet"
+  eo_encoder: "resnet18"
+  sar_encoder: "resnet18_adapted"  # 1-channel, weights summed from pretrained RGB conv1
+  eo_input_channels: 3             # EO (pre-event optical)
+  sar_input_channels: 1            # SAR (post-event radar)
+  output_channels: 1
+  optimizer: "AdamW"
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  loss: "BCEDiceLoss"
+  bce_weight: 0.5
+  gating: true                     # Apply Stage 1 footprint mask as hard gate
+  gate_threshold: 0.5              # Sigmoid threshold for Stage 1 gate
+  prediction_threshold: 0.5        # Sigmoid threshold for final damage prediction
+  max_epochs: 100
+  early_stopping_patience: 10
+  checkpoint: "checkpoints/best_stage2.pth"
+
+# ---- Hardware ----
+hardware:
+  device: "cuda"   # "cuda" if GPU available, else "cpu"

@@ -36,8 +36,19 @@ def preprocess_sar(sar_patch):
     return torch.from_numpy(sar_norm).float()
 
 def preprocess_mask(mask_patch):
-    """Ensure binary mask."""
+    """Stage 1 mask: all buildings (Intact=1, Damaged=2, Destroyed=3) → 1 (building present)."""
     return torch.from_numpy((mask_patch > 0).astype(np.float32))
+
+def preprocess_mask_damage(mask_patch):
+    """
+    Stage 2 mask — Assignment-required label remapping:
+      0 (Background) → 0  (No-Change)
+      1 (Intact)     → 0  (No-Change)
+      2 (Damaged)    → 1  (Change)
+      3 (Destroyed)  → 1  (Change)
+    """
+    damage_mask = ((mask_patch == 2) | (mask_patch == 3)).astype(np.float32)
+    return torch.from_numpy(damage_mask)
 
 def apply_spatial_augmentations(eo_tensor, sar_tensor, mask_tensor):
     """Apply random horizontal and vertical flips."""
