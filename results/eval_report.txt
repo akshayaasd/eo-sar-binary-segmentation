@@ -1,7 +1,11 @@
 FINAL EVALUATION RESULTS (Test Split)
 ==================================================
 Samples evaluated : 77
-Mean IoU          : 0.5274  (52.74%)
-Mean F1           : 0.5987  (59.87%)
-Mean Precision    : 0.6324  (63.24%)
-Mean Recall       : 0.8172  (81.72%)
+Mean IoU          : 0.3705  (37.05%)
+Mean F1           : 0.3804  (38.04%)
+Mean Precision    : 0.5336  (53.36%)
+Mean Recall       : 0.7400  (74.00%)
+
+Confusion Matrix (pixel-level):
+  TN=4880686  FP=91728
+  FN=68549  TP=5309

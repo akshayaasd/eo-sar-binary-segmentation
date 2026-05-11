@@ -1,0 +1,25 @@
+RESOURCE LOG
+============
+Project: EO-SAR Binary Change Detection
+Author: Akshayaa S
+
+TIME SPENT:
+- Data Review & Exploration: 6h (Detailed analysis of provided TIF pairs and label distribution)
+- Literature Survey & Research: 8h (Researching Pseudo-Siamese fusion and class imbalance mitigation using NotebookLM and academic literature)
+- Preprocessing implementation: 4h
+- Stage 1 training: 3h
+- Stage 2 training (multiple runs): 10h (Iterative refinement of gating and loss functions)
+- Debugging & Environment Setup: 6h
+- Evaluation & Results Analysis: 3h
+- Documentation & Report Writing: 5h
+TOTAL: ~45 hours
+
+HARDWARE:
+- NVIDIA RTX 3050 (4GB VRAM)
+- Intel Core CPU
+- 16GB RAM
+
+CONSTRAINTS & NOTES:
+- Dataset was provided by GalaxEye Space (no external data used).
+- 4GB VRAM necessitated 256x256 random patching to avoid Out-Of-Memory (OOM) errors.
+- Windows OpenMP conflict required KMP_DUPLICATE_LIB_OK=TRUE workaround.

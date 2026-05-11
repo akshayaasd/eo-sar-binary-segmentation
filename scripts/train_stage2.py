@@ -2,8 +2,9 @@ import os
 import sys
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from tqdm import tqdm
 
 # Add root directory to path to import src
@@ -17,23 +18,26 @@ from src.models.pseudo_siamese import PseudoSiameseUNet
 # 1. Loss Functions & Metrics
 # ==========================================
 class BCEDiceLoss(nn.Module):
-    def __init__(self, bce_weight=0.5):
+    def __init__(self, bce_weight=0.4, pos_weight=5.0):
         super().__init__()
         self.bce_weight = bce_weight
-        self.bce = nn.BCEWithLogitsLoss()
-        
+        self.pos_weight = pos_weight  # stored as float; tensor created on correct device in forward()
+
     def forward(self, inputs, targets):
-        # BCE Loss
-        bce_loss = self.bce(inputs, targets)
-        
-        # Dice Loss
+        # BCE Loss — pos_weight tensor created on same device as inputs (fixes GPU/CPU bug)
+        # pos_weight=5: missed damage pixel costs 5x more than a false positive
+        # From check_labels: ~36x class imbalance; 5 gives a strong but stable signal
+        pw = torch.tensor([self.pos_weight], device=inputs.device)
+        bce_loss = F.binary_cross_entropy_with_logits(inputs, targets, pos_weight=pw)
+
+        # Dice Loss — naturally handles class imbalance via overlap ratio
         inputs_sigmoid = torch.sigmoid(inputs)
         smooth = 1e-6
-        intersection = (inputs_sigmoid * targets).sum(dim=(2,3))
-        union = inputs_sigmoid.sum(dim=(2,3)) + targets.sum(dim=(2,3))
+        intersection = (inputs_sigmoid * targets).sum(dim=(2, 3))
+        union = inputs_sigmoid.sum(dim=(2, 3)) + targets.sum(dim=(2, 3))
         dice_loss = 1 - ((2. * intersection + smooth) / (union + smooth))
         dice_loss = dice_loss.mean()
-        
+
         return self.bce_weight * bce_loss + (1 - self.bce_weight) * dice_loss
 
 def calculate_iou_f1(preds, targets, threshold=0.5):
@@ -86,16 +90,22 @@ def train():
     # ------------------------------------------
     print("Initializing Stage 2 Damage Classification Model...")
     model = PseudoSiameseUNet(out_channels=1).to(device)
-    criterion = BCEDiceLoss(bce_weight=0.5)
+    criterion = BCEDiceLoss(bce_weight=0.5, pos_weight=1.0)  # Clean BCE+Dice; pos_weight=1 = no weighting
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
     
     # Dataloaders
     print("Loading datasets...")
     train_dataset = EOSARDataset(root_dir=dataset_root, split='train', patch_size=256, augment=True,  task='damage')
     val_dataset   = EOSARDataset(root_dir=dataset_root, split='val',   patch_size=256, augment=False, task='damage')
-    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+
+    # Dataloaders — damage-biased PATCH extraction is handled inside EOSARDataset
+    # (tries 5 random crops per file to find one with actual damage pixels)
+    # We do NOT use WeightedRandomSampler here: it causes train/val distribution
+    # mismatch and the model peaks at epoch 1 then declines.
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                              num_workers=4, pin_memory=True)
+    val_loader   = DataLoader(val_dataset,   batch_size=batch_size, shuffle=False,
+                              num_workers=4, pin_memory=True)
     
     best_iou = 0.0
     epochs_without_improvement = 0

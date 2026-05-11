@@ -50,6 +50,26 @@ class EOSARDataset(Dataset):
         
     def __len__(self):
         return len(self.filenames)
+
+    def get_sample_weights(self, weight_damage=10.0):
+        """
+        Compute per-sample weights for WeightedRandomSampler.
+        Files containing any damage (class 2 or 3) get weight=weight_damage.
+        Files with no damage (only 0 and 1) get weight=1.0.
+        This oversamples damage-containing files to fix patch-level class imbalance.
+        """
+        import numpy as np
+        weights = []
+        for filename in self.filenames:
+            mask_path = self.target_dir / filename
+            try:
+                with rasterio.open(mask_path) as src:
+                    data = src.read(1)  # Read first band only (fast)
+                    has_damage = bool(np.any((data == 2) | (data == 3)))
+                weights.append(weight_damage if has_damage else 1.0)
+            except Exception:
+                weights.append(1.0)
+        return weights
     
     def _load_image(self, path):
         with rasterio.open(path) as src:
@@ -67,8 +87,21 @@ class EOSARDataset(Dataset):
                 sar_raw = self._load_image(self.post_dir / filename)
                 mask_raw = self._load_image(self.target_dir / filename)
                 
-                # 1. Patch Extraction
-                eo_patch, sar_patch, mask_patch = extract_random_patch(eo_raw, sar_raw, mask_raw, self.patch_size)
+                # 1. Patch Extraction — bias towards damage pixels for Stage 2
+                if self.task == 'damage':
+                    # Try up to 5 random crops to find one containing damage
+                    for _ in range(5):
+                        eo_patch, sar_patch, mask_patch = extract_random_patch(
+                            eo_raw, sar_raw, mask_raw, self.patch_size
+                        )
+                        import numpy as np
+                        if np.any((mask_patch == 2) | (mask_patch == 3)):
+                            break  # Found a patch with actual damage — use it
+                    # If no damage found after 5 attempts, use last crop (still valid)
+                else:
+                    eo_patch, sar_patch, mask_patch = extract_random_patch(
+                        eo_raw, sar_raw, mask_raw, self.patch_size
+                    )
                 
                 # 2. Dual-Stream Preprocessing
                 eo_tensor = preprocess_eo(eo_patch)

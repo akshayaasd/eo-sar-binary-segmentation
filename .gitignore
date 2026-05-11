@@ -22,6 +22,11 @@ venv/
 env/
 .env
 
-# Docs
+# Docs and Markdown
 *.md
 !README.md
+!docs/*.md
+
+# Results and Samples
+!results/*.png
+!results/*.txt

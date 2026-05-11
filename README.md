@@ -12,10 +12,10 @@ Metrics reported for the **Change class (label = 1)** only, per assignment requi
 
 | Metric | Validation Split | Test Split (Held-Out) |
 |---|---|---|
-| **IoU** | 0.7767 | 0.5274 |
-| **F1 Score** | 0.8572 | 0.5987 |
-| **Precision** | — | 0.6324 |
-| **Recall** | — | 0.8172 |
+| **Mean IoU** | 0.4298 | **0.3705** |
+| **Mean F1 Score** | 0.4486 | **0.3804** |
+| **Precision** | — | **0.5336** |
+| **Recall** | — | **0.7400** |
 
 > Full pixel-level confusion matrix and per-sample visualizations: `results/eval_report.txt` and `results/sample_*.png`
 
