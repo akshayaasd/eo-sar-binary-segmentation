@@ -106,7 +106,7 @@ Stage 1 Building Gate ───────────────────�
 
 #### The Gating Mechanism
 
-![Architecture Diagram](file:///d:/interview/galaxeye/eo-sar-binary-segmentation/docs/architecture_diagram.png)
+![Architecture Diagram](architecture_diagram.png)
 
 The Stage 1 building footprint is used as a hard spatial gate at inference and during training:
 

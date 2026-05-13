@@ -26,6 +26,7 @@ env/
 *.md
 !README.md
 !docs/*.md
+!docs/*.png
 
 # Results and Samples
 !results/*.png
