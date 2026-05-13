@@ -106,6 +106,8 @@ Stage 1 Building Gate ───────────────────�
 
 #### The Gating Mechanism
 
+![Architecture Diagram](file:///d:/interview/galaxeye/eo-sar-binary-segmentation/docs/architecture_diagram.png)
+
 The Stage 1 building footprint is used as a hard spatial gate at inference and during training:
 
 ```
@@ -328,5 +330,13 @@ Despite these limitations, the system achieves a meaningful baseline for a genui
 7. Lee, J. S., & Pottier, E. (2009). *Polarimetric Radar Imaging: From Basics to Applications.* CRC Press.
 8. Benedek, C., Shadaydeh, M., Kato, Z., Sziranyi, T., & Zerubia, J. (2018). Multilayer Markov Random Field Models for Change Detection in Optical Remote Sensing Images. *ISPRS.*
 9. Bandara, W. G. C., & Patel, V. M. (2022). A Transformer-Based Siamese Network for Change Detection. *IGARSS.*
-10. Pytorch Contributors. (2024). *PyTorch Documentation.* pytorch.org
-11. ImageNet pre-trained ResNet-18: `torchvision.models.ResNet18_Weights.IMAGENET1K_V1`
+10. Chen, H., & Shi, Z. (2020). A spatial-temporal attention-based method and a new dataset for remote sensing image change detection. *Remote Sensing.*
+11. Gupta, R., Goodman, B., Patel, N., et al. (2019). Creating xBD: A Dataset for Assessing Building Damage from Satellite Imagery. *CVPR Workshops.*
+12. Adriano, B., Yokoya, N., Xia, J., et al. (2021). Learning from multimodal and multitemporal earth observation data for building damage mapping. *ISPRS Journal.*
+13. Jiang, X., Li, G., Liu, Y., et al. (2020). Change Detection in Heterogeneous Optical and SAR Remote Sensing Images Via Deep Homogeneous Feature Fusion. *IEEE J-STARS.*
+14. Chen, H., Song, J., Dietrich, O., et al. (2025). BRIGHT: A globally distributed multimodal building damage assessment dataset. *arXiv / ESSD.*
+15. Zheng, Z., Zhong, Y., Wang, J., et al. (2021). Building damage assessment for rapid disaster response with a deep object-based semantic change detection framework. *Remote Sensing of Environment.*
+16. Zhu, X. X., Montazeri, S., Ali, M., et al. (2021). Deep Learning Meets SAR: Concepts, models, pitfalls, and perspectives. *IEEE GRSM.*
+17. Pang, L., Sun, J., Chi, Y., et al. (2022). CD-TransUNet: A Hybrid Transformer Network for the Change Detection of Urban Buildings Using L-Band SAR Images. *Sustainability.*
+18. Pytorch Contributors. (2024). *PyTorch Documentation.* pytorch.org
+19. ImageNet pre-trained ResNet-18: `torchvision.models.ResNet18_Weights.IMAGENET1K_V1`

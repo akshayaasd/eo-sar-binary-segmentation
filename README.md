@@ -25,6 +25,8 @@ Metrics reported for the **Change class (label = 1)** only, per assignment requi
 
 ### Two-Stage Gated Strategy
 
+![Architecture Diagram](docs/architecture_diagram.png)
+
 **Stage 1 — Building Localization**
 A `ResNet-18 U-Net` trained exclusively on pre-event EO imagery to produce binary building footprint masks. Input: EO only. Output: `1` where a building exists, `0` otherwise.
 
@@ -32,9 +34,6 @@ A `ResNet-18 U-Net` trained exclusively on pre-event EO imagery to produce binar
 A dual-encoder `Pseudo-Siamese U-Net` that processes EO (pre-event) and SAR (post-event) simultaneously. Each modality has its own ResNet-18 encoder; features are fused via concatenation at every skip-connection level.
 
 **The Gating Mechanism**
-```
-gated_prediction = stage2_logits × stage1_building_mask
-```
 The Stage 1 footprint acts as a hard spatial gate — the model is penalized only for predictions *inside* building regions, eliminating false positives from vehicles, shadows, and seasonal change.
 
 **Label Remapping** (per assignment specification):
@@ -99,7 +98,7 @@ tqdm>=4.66.0
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-link>
+git clone https://github.com/akshayaasd/eo-sar-binary-segmentation
 cd eo-sar-binary-segmentation
 
 # 2. Create conda environment
